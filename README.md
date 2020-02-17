@@ -5,9 +5,12 @@
 - gradle
 
 ## How to use
-```shell
-java -jar document-template-service.jar
-```
+1. [Download](https://github.com/things-factory/document-template-service/releases) the jar file
+1. open terminal and move to the downloaded jar
+1. type this command
+    ```shell
+    java -jar document-template-service.jar
+    ```
 
 ## Change server port
 make the application.properties file. And open with editor.
