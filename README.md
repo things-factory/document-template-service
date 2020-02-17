@@ -16,7 +16,7 @@ server.port=PORT_NUMBER
 ```
 
 ## Write report
-- design 
+- design the template using [Jasper Studio](https://www.jaspersoft.com/products/jaspersoft-studio)
 - create fields and datasource
 - mapping with field
 - get sub datasource from main datasource    
