@@ -21,5 +21,6 @@ server.port=PORT_NUMBER
 - mapping with field
 - get sub datasource from main datasource    
     ```java
-        ((net.sf.jasperreports.engine.data.JsonDataSource)$P{REPORT_DATA_SOURCE}).subDataSource("items")
+    // e.g. get datasource named items from json data
+    ((net.sf.jasperreports.engine.data.JsonDataSource)$P{REPORT_DATA_SOURCE}).subDataSource("items")
     ```
