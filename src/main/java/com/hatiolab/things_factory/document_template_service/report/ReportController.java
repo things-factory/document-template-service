@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -32,33 +33,43 @@ import net.sf.jasperreports.export.SimpleHtmlExporterOutput;
 import net.sf.jasperreports.export.SimpleHtmlReportConfiguration;
 import net.sf.jasperreports.export.type.HtmlSizeUnitEnum;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
 @RestController
 @ResponseStatus(HttpStatus.OK)
 @RequestMapping("/rest/report")
 public class ReportController {
+
 	@PostMapping(path = "/show_pdf", produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> showPdf(@RequestParam MultipartFile template, @RequestParam String jsonString)
-			throws Exception {
-		if (template.isEmpty()) {
-			return new ResponseEntity<>("please select a file!", HttpStatus.OK);
-		}
-
+	public ResponseEntity<?> showPdf(
+			@RequestParam String template, 
+			@RequestParam String jsonString,
+			@RequestParam String parameters
+		) throws Exception {
 		try {
-
-			ByteArrayInputStream is = new ByteArrayInputStream(template.getBytes());
-			// 2. JasperReport 정보를 로딩
-			JasperReport jasperReport = this.loadReportByJRxml(is);
-
-			InputStream jsonInputStream = new ByteArrayInputStream(jsonString.getBytes());
-			JsonDataSource jds = new JsonDataSource(jsonInputStream);
-
-			ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-			// 4. JapserReport와 데이터소스로 리포트를 response의 output stream에 write
-			this.writeReportToStream("pdf", jasperReport, null, jds, os);
-
+			ByteArrayOutputStream os = this.generateReport("pdf", template.getBytes(), jsonString, parameters);
 			return new ResponseEntity<>(os.toByteArray(), HttpStatus.OK);
+		} catch (JRException jre) {
+			throw jre;
+		} catch (Exception e) {
+			throw e;
+		}
+	}
 
+	@PostMapping(path = "/show_pdf", produces = MediaType.APPLICATION_JSON_VALUE, params = "template, jsonString, parameters, isFile")
+	public ResponseEntity<?> showPdf(
+			@RequestParam MultipartFile template, 
+			@RequestParam String jsonString, 
+			@RequestParam String parameters,
+			@RequestParam Boolean isFile
+		) throws Exception {
+		try {
+			if (template.isEmpty()) {
+				return new ResponseEntity<>("please select a file!", HttpStatus.OK);
+			}
+			ByteArrayOutputStream os = this.generateReport("pdf", template.getBytes(), jsonString, parameters);
+			return new ResponseEntity<>(os.toByteArray(), HttpStatus.OK);
 		} catch (JRException jre) {
 			throw jre;
 
@@ -68,52 +79,36 @@ public class ReportController {
 	}
 
 	@PostMapping(path = "/show_html", produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> showHtml(@RequestParam String template, @RequestParam String jsonString) throws Exception {
+	public ResponseEntity<?> showHtml(
+			@RequestParam String template, 
+			@RequestParam String jsonString, 
+			@RequestParam String parameters
+		) throws Exception {
 		try {
-			ByteArrayInputStream is = new ByteArrayInputStream(template.getBytes());
-			// 2. JasperReport 정보를 로딩
-			JasperReport jasperReport = this.loadReportByJRxml(is);
-			InputStream jsonInputStream = new ByteArrayInputStream(jsonString.getBytes("UTF-8"));
-			JsonDataSource jds = new JsonDataSource(jsonInputStream);
-			ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-			// 4. JapserReport와 데이터소스로 리포트를 response의 output stream에 write
-			this.writeReportToStream("html", jasperReport, null, jds, os);
-
+			ByteArrayOutputStream os = this.generateReport("html", template.getBytes(), jsonString, parameters);
 			return new ResponseEntity<>(os.toByteArray(), HttpStatus.OK);
-
 		} catch (JRException jre) {
 			throw jre;
-
 		} catch (Exception e) {
 			throw e;
 		}
 	}
 
-	@PostMapping(path = "/show_html", produces = MediaType.APPLICATION_JSON_VALUE, params = "template, jsonString, isFile")
-	public ResponseEntity<?> showHtml(@RequestParam MultipartFile template, @RequestParam String jsonString,
-			@RequestParam Boolean isFile) throws Exception {
-
-		if (template.isEmpty()) {
-			return new ResponseEntity<>("please select a file!", HttpStatus.OK);
-		}
-
+	@PostMapping(path = "/show_html", produces = MediaType.APPLICATION_JSON_VALUE, params = "template, jsonString, parameters, isFile")
+	public ResponseEntity<?> showHtml(
+			@RequestParam MultipartFile template, 
+			@RequestParam String jsonString,
+			@RequestParam String parameters,
+			@RequestParam Boolean isFile
+		) throws Exception {
 		try {
-			ByteArrayInputStream is = new ByteArrayInputStream(template.getBytes());
-			// 2. JasperReport 정보를 로딩
-			JasperReport jasperReport = this.loadReportByJRxml(is);
-			InputStream jsonInputStream = new ByteArrayInputStream(jsonString.getBytes("UTF-8"));
-			JsonDataSource jds = new JsonDataSource(jsonInputStream);
-			ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-			// 4. JapserReport와 데이터소스로 리포트를 response의 output stream에 write
-			this.writeReportToStream("html", jasperReport, null, jds, os);
-
+			if (template.isEmpty()) {
+				return new ResponseEntity<>("please select a file!", HttpStatus.OK);
+			}
+			ByteArrayOutputStream os = this.generateReport("html", template.getBytes(), jsonString, parameters);
 			return new ResponseEntity<>(os.toByteArray(), HttpStatus.OK);
-
 		} catch (JRException jre) {
 			throw jre;
-
 		} catch (Exception e) {
 			throw e;
 		}
@@ -128,6 +123,26 @@ public class ReportController {
 		JasperDesign jasperDesign = JRXmlLoader.load(is);
 		JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
 		return jasperReport;
+	}
+
+	private ByteArrayOutputStream generateReport(String type, byte[] template, String datasource, String parameters) throws Exception {
+		
+		ByteArrayInputStream is = new ByteArrayInputStream(template);
+		// 2. JasperReport 정보를 로딩
+		JasperReport jasperReport = loadReportByJRxml(is);
+		InputStream jsonInputStream = new ByteArrayInputStream(datasource.getBytes("UTF-8"));
+		JsonDataSource jds = new JsonDataSource(jsonInputStream);
+
+		Type paramsType = new TypeToken<Map<String, String>>(){}.getType();
+		Map<String, Object> parameterMap = new Gson().fromJson(
+			parameters, paramsType
+		);
+
+		ByteArrayOutputStream os = new ByteArrayOutputStream();
+
+		writeReportToStream(type, jasperReport, parameterMap, jds, os);
+
+		return os;
 	}
 
 	private void writeReportToStream(String type, JasperReport jasperReport, Map<String, Object> parameters,
