@@ -37,7 +37,7 @@ import net.sf.jasperreports.export.type.HtmlSizeUnitEnum;
 @RequestMapping("/rest/report")
 public class ReportController {
 	@PostMapping(path = "/show_pdf", produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> showPdf(@RequestParam MultipartFile template, @RequestParam String jsonString)
+	public ResponseEntity<?> showPdf(@RequestParam String template, @RequestParam String jsonString)
 			throws Exception {
 		if (template.isEmpty()) {
 			return new ResponseEntity<>("please select a file!", HttpStatus.OK);
